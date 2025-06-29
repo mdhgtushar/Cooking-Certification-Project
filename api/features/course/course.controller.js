@@ -9,6 +9,7 @@ const createCourse = async (req, res, next) => {
     const {
       title,
       description,
+      shortDescription,
       category,
       level,
       duration,
@@ -16,35 +17,20 @@ const createCourse = async (req, res, next) => {
       price,
       currency,
       maxStudents,
+      thumbnail,
+      location,
+      schedule,
       syllabus,
       requirements,
       learningOutcomes,
       examDetails
     } = req.body;
 
-    // Validate input
-    const validation = validateInput({
-      title: { value: title, required: true, maxLength: 100 },
-      description: { value: description, required: true, maxLength: 1000 },
-      category: { value: category, required: true },
-      level: { value: level, required: true },
-      duration: { value: duration, required: true, type: 'number', min: 1 },
-      price: { value: price, required: true, type: 'number', min: 0 },
-      maxStudents: { value: maxStudents, type: 'number', min: 1 }
-    });
-
-    if (!validation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: validation.errors
-      });
-    }
-
-    // Create course
+    // Create course with all fields
     const course = await Course.create({
       title,
       description,
+      shortDescription,
       category,
       level,
       duration,
@@ -52,6 +38,9 @@ const createCourse = async (req, res, next) => {
       price,
       currency,
       maxStudents,
+      thumbnail,
+      location,
+      schedule,
       syllabus,
       requirements,
       learningOutcomes,
@@ -65,6 +54,18 @@ const createCourse = async (req, res, next) => {
       data: { course }
     });
   } catch (error) {
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const errors = {};
+      Object.keys(error.errors).forEach(key => {
+        errors[key] = error.errors[key].message;
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
     next(error);
   }
 };
@@ -86,7 +87,13 @@ const getAllCourses = async (req, res, next) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
     // Build filter
-    const filter = { isActive: true, status };
+    const filter = { isActive: true };
+    
+    // Only filter by status if it's not 'all'
+    if (status !== 'all') {
+      filter.status = status;
+    }
+    
     if (category) filter.category = category;
     if (level) filter.level = level;
     if (search) {

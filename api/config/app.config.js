@@ -6,7 +6,7 @@ const appConfig = {
   mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/cooking-certification',
   bcryptRounds: 12,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  rateLimitWindow: 15 * 60 * 1000, // 15 minutes
+  rateLimitWindow: 6000, // 15 minutes
   rateLimitMax: 100 // requests per window
 };
 
