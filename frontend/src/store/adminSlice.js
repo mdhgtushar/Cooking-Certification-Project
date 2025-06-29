@@ -450,8 +450,23 @@ const adminSlice = createSlice({
       })
       .addCase(fetchUsers.fulfilled, (state, action) => {
         state.usersLoading = false;
-        state.users = action.payload.data.users;
-        state.usersPagination = action.payload.data.pagination;
+        // Handle both possible response structures with defensive checks
+        if (!action.payload) {
+          state.users = [];
+          state.usersPagination = { page: 1, limit: 10, total: 0, pages: 0 };
+          return;
+        }
+        
+        if (action.payload.data && action.payload.data.users) {
+          state.users = action.payload.data.users || [];
+          state.usersPagination = action.payload.data.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else if (action.payload.users) {
+          state.users = action.payload.users || [];
+          state.usersPagination = action.payload.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else {
+          state.users = Array.isArray(action.payload) ? action.payload : [];
+          state.usersPagination = { page: 1, limit: 10, total: state.users.length, pages: 1 };
+        }
       })
       .addCase(fetchUsers.rejected, (state, action) => {
         state.usersLoading = false;
@@ -485,8 +500,23 @@ const adminSlice = createSlice({
       })
       .addCase(fetchCertificates.fulfilled, (state, action) => {
         state.certificatesLoading = false;
-        state.certificates = action.payload.data.certificates;
-        state.certificatesPagination = action.payload.data.pagination;
+        // Handle both possible response structures with defensive checks
+        if (!action.payload) {
+          state.certificates = [];
+          state.certificatesPagination = { page: 1, limit: 10, total: 0, pages: 0 };
+          return;
+        }
+        
+        if (action.payload.data && action.payload.data.certificates) {
+          state.certificates = action.payload.data.certificates || [];
+          state.certificatesPagination = action.payload.data.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else if (action.payload.certificates) {
+          state.certificates = action.payload.certificates || [];
+          state.certificatesPagination = action.payload.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else {
+          state.certificates = Array.isArray(action.payload) ? action.payload : [];
+          state.certificatesPagination = { page: 1, limit: 10, total: state.certificates.length, pages: 1 };
+        }
       })
       .addCase(fetchCertificates.rejected, (state, action) => {
         state.certificatesLoading = false;
@@ -506,7 +536,9 @@ const adminSlice = createSlice({
         }
       })
       .addCase(createCertificate.fulfilled, (state, action) => {
-        state.certificates.unshift(action.payload.data);
+        // Handle both possible response structures
+        const certificate = action.payload.data || action.payload;
+        state.certificates.unshift(certificate);
       });
 
     // Applications
@@ -517,8 +549,23 @@ const adminSlice = createSlice({
       })
       .addCase(fetchApplications.fulfilled, (state, action) => {
         state.applicationsLoading = false;
-        state.applications = action.payload.data.applications;
-        state.applicationsPagination = action.payload.data.pagination;
+        // Handle both possible response structures with defensive checks
+        if (!action.payload) {
+          state.applications = [];
+          state.applicationsPagination = { page: 1, limit: 10, total: 0, pages: 0 };
+          return;
+        }
+        
+        if (action.payload.data && action.payload.data.applications) {
+          state.applications = action.payload.data.applications || [];
+          state.applicationsPagination = action.payload.data.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else if (action.payload.applications) {
+          state.applications = action.payload.applications || [];
+          state.applicationsPagination = action.payload.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else {
+          state.applications = Array.isArray(action.payload) ? action.payload : [];
+          state.applicationsPagination = { page: 1, limit: 10, total: state.applications.length, pages: 1 };
+        }
       })
       .addCase(fetchApplications.rejected, (state, action) => {
         state.applicationsLoading = false;
@@ -545,7 +592,9 @@ const adminSlice = createSlice({
         }
       })
       .addCase(createApplication.fulfilled, (state, action) => {
-        state.applications.unshift(action.payload.data);
+        // Handle both possible response structures
+        const application = action.payload.data || action.payload;
+        state.applications.unshift(application);
       });
 
     // Exams
@@ -556,8 +605,23 @@ const adminSlice = createSlice({
       })
       .addCase(fetchExams.fulfilled, (state, action) => {
         state.examsLoading = false;
-        state.exams = action.payload.data.exams;
-        state.examsPagination = action.payload.data.pagination;
+        // Handle both possible response structures with defensive checks
+        if (!action.payload) {
+          state.exams = [];
+          state.examsPagination = { page: 1, limit: 10, total: 0, pages: 0 };
+          return;
+        }
+        
+        if (action.payload.data && action.payload.data.exams) {
+          state.exams = action.payload.data.exams || [];
+          state.examsPagination = action.payload.data.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else if (action.payload.exams) {
+          state.exams = action.payload.exams || [];
+          state.examsPagination = action.payload.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else {
+          state.exams = Array.isArray(action.payload) ? action.payload : [];
+          state.examsPagination = { page: 1, limit: 10, total: state.exams.length, pages: 1 };
+        }
       })
       .addCase(fetchExams.rejected, (state, action) => {
         state.examsLoading = false;
@@ -578,7 +642,9 @@ const adminSlice = createSlice({
         }
       })
       .addCase(createExam.fulfilled, (state, action) => {
-        state.exams.unshift(action.payload);
+        // Handle both possible response structures
+        const exam = action.payload.data || action.payload;
+        state.exams.unshift(exam);
       });
 
     // Contacts
@@ -589,8 +655,23 @@ const adminSlice = createSlice({
       })
       .addCase(fetchContacts.fulfilled, (state, action) => {
         state.contactsLoading = false;
-        state.contacts = action.payload.contacts;
-        state.contactsPagination = action.payload.pagination;
+        // Handle both possible response structures with defensive checks
+        if (!action.payload) {
+          state.contacts = [];
+          state.contactsPagination = { page: 1, limit: 10, total: 0, pages: 0 };
+          return;
+        }
+        
+        if (action.payload.data && action.payload.data.contacts) {
+          state.contacts = action.payload.data.contacts || [];
+          state.contactsPagination = action.payload.data.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else if (action.payload.contacts) {
+          state.contacts = action.payload.contacts || [];
+          state.contactsPagination = action.payload.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else {
+          state.contacts = Array.isArray(action.payload) ? action.payload : [];
+          state.contactsPagination = { page: 1, limit: 10, total: state.contacts.length, pages: 1 };
+        }
       })
       .addCase(fetchContacts.rejected, (state, action) => {
         state.contactsLoading = false;
@@ -615,15 +696,32 @@ const adminSlice = createSlice({
       })
       .addCase(fetchCourses.fulfilled, (state, action) => {
         state.coursesLoading = false;
-        state.courses = action.payload.data.courses;
-        state.coursesPagination = action.payload.data.pagination;
+        // Handle both possible response structures with defensive checks
+        if (!action.payload) {
+          state.courses = [];
+          state.coursesPagination = { page: 1, limit: 10, total: 0, pages: 0 };
+          return;
+        }
+        
+        if (action.payload.data && action.payload.data.courses) {
+          state.courses = action.payload.data.courses || [];
+          state.coursesPagination = action.payload.data.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else if (action.payload.courses) {
+          state.courses = action.payload.courses || [];
+          state.coursesPagination = action.payload.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+        } else {
+          state.courses = Array.isArray(action.payload) ? action.payload : [];
+          state.coursesPagination = { page: 1, limit: 10, total: state.courses.length, pages: 1 };
+        }
       })
       .addCase(fetchCourses.rejected, (state, action) => {
         state.coursesLoading = false;
         state.coursesError = action.payload;
       })
       .addCase(createCourse.fulfilled, (state, action) => {
-        state.courses.unshift(action.payload);
+        // Handle both possible response structures
+        const course = action.payload.data || action.payload;
+        state.courses.unshift(course);
       })
       .addCase(updateCourse.fulfilled, (state, action) => {
         const { courseId, courseData } = action.payload;

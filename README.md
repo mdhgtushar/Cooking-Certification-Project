@@ -1,6 +1,6 @@
 # Cooking Certification Project
 
-A comprehensive web application for managing cooking certification courses, applications, exams, and certificates. Built with React frontend and Node.js/Express backend with MongoDB database.
+A comprehensive web application for managing cooking certification courses, applications, exams, and certificates. Built with React frontend and Node.js/Express backend with MongoDB database. Features a warm, cooking-inspired design with professional certificate generation capabilities.
 
 ## 🚀 Features
 
@@ -9,24 +9,46 @@ A comprehensive web application for managing cooking certification courses, appl
 - **Course Browsing** - Browse available cooking certification courses
 - **Application Management** - Submit and track course applications
 - **Exam Management** - Take exams and view results
-- **Certificate Management** - View and download earned certificates
+- **Certificate Management** - View and download earned certificates as PDF
 - **Profile Management** - Update personal information and preferences
+- **Certificate Verification** - Verify certificate authenticity with QR codes
 
 ### Admin Features
 - **Dashboard Analytics** - Comprehensive system analytics and statistics
 - **User Management** - Manage user accounts, roles, and permissions
 - **Application Management** - Review and approve/reject course applications
-- **Exam Management** - Create, schedule, and grade exams
-- **Certificate Management** - Generate and manage certificates
+- **Exam Management** - Create, schedule, and grade exams with user/course selection
+- **Certificate Management** - Generate and manage certificates with PDF download
 - **Course Management** - Create and manage certification courses
 - **Contact Management** - Handle user inquiries and support requests
+- **Fixed Admin Sidebar** - Professional fixed sidebar navigation
+
+## 🎨 Design & UI
+
+### Cooking-Themed Color Scheme
+- **Primary Colors**: Warm orange tones representing culinary passion and energy
+- **Secondary Colors**: Golden yellow tones reflecting delicious, golden food
+- **Additional Palettes**: 
+  - Cooking browns for rich, earthy ingredients
+  - Spice reds for bold flavors and excitement
+  - Cream tones for comfort and elegance
+- **Responsive Design**: Optimized for desktop, tablet, and mobile devices
+
+### UI/UX Features
+- **Modern Interface** - Clean and intuitive design using Tailwind CSS
+- **Fixed Admin Layout** - Professional fixed sidebar with proper navigation
+- **Real-time Updates** - Live updates using Redux state management
+- **Toast Notifications** - User-friendly feedback messages
+- **Loading States** - Smooth loading indicators and skeleton screens
+- **Error Handling** - Comprehensive error handling and user feedback
+- **PDF Generation** - Professional certificate generation with QR codes
 
 ## 🛠️ Tech Stack
 
 ### Frontend
 - **React 18** - Modern React with hooks and functional components
 - **Redux Toolkit** - State management with RTK Query
-- **Tailwind CSS** - Utility-first CSS framework for styling
+- **Tailwind CSS** - Utility-first CSS framework with cooking-themed colors
 - **React Router** - Client-side routing
 - **React Toastify** - Toast notifications
 - **Axios** - HTTP client for API calls
@@ -39,6 +61,8 @@ A comprehensive web application for managing cooking certification courses, appl
 - **JWT** - JSON Web Tokens for authentication
 - **bcryptjs** - Password hashing
 - **CORS** - Cross-origin resource sharing
+- **PDFKit** - PDF generation for certificates
+- **QRCode** - QR code generation for certificate verification
 
 ## 📁 Project Structure
 
@@ -56,22 +80,25 @@ Cooking-Certification-Project/
 │   │   └── user/                # User management
 │   ├── middleware/              # Custom middleware
 │   ├── utils/                   # Utility functions
+│   │   ├── pdfGenerator.js      # PDF certificate generation
+│   │   └── generateToken.js     # JWT token generation
 │   └── index.js                 # Main server file
 ├── frontend/                     # React frontend
 │   ├── public/                  # Static files
 │   ├── src/                     # Source code
 │   │   ├── components/          # Reusable components
 │   │   ├── pages/               # Page components
-│   │   │   ├── admin/           # Admin pages
+│   │   │   ├── admin/           # Admin pages with fixed sidebar
 │   │   │   ├── applications/    # Application pages
 │   │   │   ├── auth/            # Authentication pages
-│   │   │   ├── certificates/    # Certificate pages
+│   │   │   ├── certificates/    # Certificate pages with PDF download
 │   │   │   ├── courses/         # Course pages
 │   │   │   ├── exams/           # Exam pages
 │   │   │   └── user/            # User pages
 │   │   ├── services/            # API services
 │   │   ├── store/               # Redux store and slices
 │   │   └── utils/               # Utility functions
+│   ├── tailwind.config.js       # Cooking-themed color configuration
 │   └── package.json
 └── README.md
 ```
@@ -112,6 +139,7 @@ Cooking-Certification-Project/
    MONGODB_URI=mongodb://localhost:27017/cooking-certification
    JWT_SECRET=your_jwt_secret_here
    JWT_EXPIRE=30d
+   BASE_URL=http://localhost:5000
    ```
 
 5. **Database Setup**
@@ -158,6 +186,11 @@ Cooking-Certification-Project/
 - `POST /api/admin/exam-results` - Create exam (admin)
 - `POST /api/admin/certificates` - Create certificate (admin)
 
+### Certificate Endpoints
+- `GET /api/certificates/:id` - Get certificate by ID
+- `GET /api/certificates/:id/pdf` - Download certificate as PDF
+- `GET /api/verify/:code` - Verify certificate with QR code
+
 ### User Endpoints
 - `GET /api/users/profile` - Get user profile
 - `PUT /api/users/profile` - Update user profile
@@ -181,12 +214,16 @@ The application uses JWT (JSON Web Tokens) for authentication. Users are assigne
 
 ## 🎨 UI/UX Features
 
+- **Cooking-Themed Design** - Warm, food-inspired color palette
+- **Fixed Admin Sidebar** - Professional fixed navigation sidebar
 - **Responsive Design** - Works on desktop, tablet, and mobile devices
 - **Modern UI** - Clean and intuitive interface using Tailwind CSS
 - **Real-time Updates** - Live updates using Redux state management
 - **Toast Notifications** - User-friendly feedback messages
-- **Loading States** - Smooth loading indicators
+- **Loading States** - Smooth loading indicators and skeleton screens
 - **Error Handling** - Comprehensive error handling and user feedback
+- **PDF Certificate Generation** - Professional certificate downloads
+- **QR Code Verification** - Certificate authenticity verification
 
 ## 🧪 Testing
 
@@ -242,6 +279,20 @@ For support and questions:
 - **v1.1.0** - Added admin panel and management features
 - **v1.2.0** - Enhanced UI/UX and added certificate management
 - **v1.3.0** - Added exam management and result tracking
+- **v1.4.0** - Cooking-themed design, fixed admin sidebar, PDF certificate generation
+- **v1.4.1** - Enhanced exam creation with user/course selection
+- **v1.4.2** - Improved certificate management and QR code verification
+
+## 🆕 Recent Updates
+
+### v1.4.2 (Latest)
+- ✅ **Cooking-Themed Color Scheme** - Warm orange, yellow, and brown tones
+- ✅ **Fixed Admin Sidebar** - Professional fixed navigation sidebar
+- ✅ **PDF Certificate Generation** - Professional certificate downloads with QR codes
+- ✅ **Enhanced Exam Management** - User and course dropdown selection
+- ✅ **Improved Certificate Management** - Better UI and PDF generation
+- ✅ **QR Code Verification** - Certificate authenticity verification system
+- ✅ **Responsive Design Improvements** - Better mobile and tablet experience
 
 ---
 

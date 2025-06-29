@@ -1,34 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
-import { fetchExams, updateExam, gradeExam, createExam } from '../../store/adminSlice';
+import { fetchExams, updateExam, gradeExam, createExam, fetchUsers, fetchCourses } from '../../store/adminSlice';
 
 const ExamManagement = () => {
   const dispatch = useDispatch();
-  const { exams, loading } = useSelector(state => state.admin);
+  const { 
+    exams = [], 
+    users = [], 
+    courses = [], 
+    examsLoading = false,
+    usersLoading = false,
+    coursesLoading = false
+  } = useSelector(state => state.admin);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [courseFilter, setCourseFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({
-    studentName: '',
-    studentEmail: '',
+    studentId: '',
     courseId: '',
-    courseName: '',
     examDate: '',
-    duration: 120
+    examTime: '09:00',
+    duration: 120,
+    location: 'TBD'
   });
 
   useEffect(() => {
     dispatch(fetchExams());
+    dispatch(fetchUsers());
+    dispatch(fetchCourses());
   }, [dispatch]);
 
   const filteredExams = exams.filter(exam => {
-    const matchesSearch = exam.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         exam.examNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         exam.courseName.toLowerCase().includes(searchTerm.toLowerCase());
+    const studentName = exam.student?.firstName || exam.studentName || '';
+    const certificateNumber = exam.examNumber || '';
+    const courseName = exam.course?.title || exam.courseName || '';
+    
+    const matchesSearch = studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         certificateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         courseName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || exam.status === statusFilter;
-    const matchesCourse = courseFilter === 'all' || exam.courseId.toString() === courseFilter;
+    const matchesCourse = courseFilter === 'all' || (exam.course?._id || exam.courseId).toString() === courseFilter;
     
     return matchesSearch && matchesStatus && matchesCourse;
   });
@@ -95,18 +108,20 @@ const ExamManagement = () => {
 
   const handleCreateExam = () => {
     // Add validation
-    if (!createForm.studentName || !createForm.studentEmail || !createForm.courseId || !createForm.examDate) {
+    if (!createForm.studentId || !createForm.courseId || !createForm.examDate) {
       toast.error('Please fill in all required fields');
       return;
     }
 
     // Create exam data
     const examData = {
-      ...createForm,
-      status: 'scheduled',
-      examNumber: `EXAM-${Date.now()}`,
-      score: null,
-      passed: null
+      studentId: createForm.studentId,
+      courseId: createForm.courseId,
+      examDate: createForm.examDate,
+      examTime: createForm.examTime,
+      duration: createForm.duration,
+      location: createForm.location,
+      status: 'scheduled'
     };
 
     // Dispatch create action
@@ -115,12 +130,12 @@ const ExamManagement = () => {
         if (result.meta.requestStatus === 'fulfilled') {
           setShowCreateModal(false);
           setCreateForm({
-            studentName: '',
-            studentEmail: '',
+            studentId: '',
             courseId: '',
-            courseName: '',
             examDate: '',
-            duration: 120
+            examTime: '09:00',
+            duration: 120,
+            location: 'TBD'
           });
           toast.success('Exam scheduled successfully');
         } else {
@@ -132,7 +147,7 @@ const ExamManagement = () => {
       });
   };
 
-  if (loading) {
+  if (examsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -327,16 +342,16 @@ const ExamManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {exam.studentName}
+                        {exam.student?.firstName || exam.studentName || 'Unknown'} {exam.student?.lastName || ''}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {exam.studentEmail}
+                        {exam.student?.email || exam.studentEmail || 'No email'}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {exam.courseName}
+                      {exam.course?.title || exam.courseName || 'Unknown Course'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -430,58 +445,48 @@ const ExamManagement = () => {
               }} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Student Name *
+                    Select Student *
                   </label>
-                  <input
-                    type="text"
-                    value={createForm.studentName}
-                    onChange={(e) => setCreateForm({...createForm, studentName: e.target.value})}
+                  <select
+                    value={createForm.studentId}
+                    onChange={(e) => setCreateForm({...createForm, studentId: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter student name"
                     required
-                  />
+                    disabled={usersLoading}
+                  >
+                    <option value="">{usersLoading ? 'Loading students...' : 'Select a student'}</option>
+                    {Array.isArray(users) && users.map(user => {
+                      if (!user || typeof user !== 'object') return null;
+                      return (
+                        <option key={user._id || user.id || Math.random()} value={user._id || user.id}>
+                          {user.firstName || user.name || 'Unknown'} {user.lastName || ''} ({user.email || 'No email'})
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Student Email *
+                    Select Course *
                   </label>
-                  <input
-                    type="email"
-                    value={createForm.studentEmail}
-                    onChange={(e) => setCreateForm({...createForm, studentEmail: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter student email"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Course ID *
-                  </label>
-                  <input
-                    type="text"
+                  <select
                     value={createForm.courseId}
                     onChange={(e) => setCreateForm({...createForm, courseId: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter course ID"
                     required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Course Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.courseName}
-                    onChange={(e) => setCreateForm({...createForm, courseName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter course name"
-                    required
-                  />
+                    disabled={coursesLoading}
+                  >
+                    <option value="">{coursesLoading ? 'Loading courses...' : 'Select a course'}</option>
+                    {Array.isArray(courses) && courses.map(course => {
+                      if (!course || typeof course !== 'object') return null;
+                      return (
+                        <option key={course._id || course.id || Math.random()} value={course._id || course.id}>
+                          {course.title || course.name || 'Unknown Course'}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
                 
                 <div>
@@ -489,9 +494,22 @@ const ExamManagement = () => {
                     Exam Date *
                   </label>
                   <input
-                    type="datetime-local"
+                    type="date"
                     value={createForm.examDate}
                     onChange={(e) => setCreateForm({...createForm, examDate: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Exam Time *
+                  </label>
+                  <input
+                    type="time"
+                    value={createForm.examTime}
+                    onChange={(e) => setCreateForm({...createForm, examTime: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
@@ -508,6 +526,19 @@ const ExamManagement = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     min="30"
                     max="300"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    value={createForm.location}
+                    onChange={(e) => setCreateForm({...createForm, location: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter location"
                   />
                 </div>
                 

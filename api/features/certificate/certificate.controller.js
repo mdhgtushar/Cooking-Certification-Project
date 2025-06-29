@@ -3,6 +3,7 @@ const Exam = require('../exam/exam.model');
 const Course = require('../course/course.model');
 const User = require('../user/user.model');
 const validateInput = require('../../utils/validateInput');
+const CertificatePDFGenerator = require('../../utils/pdfGenerator');
 
 // @desc    Generate certificate
 // @route   POST /api/certificates
@@ -303,29 +304,33 @@ const downloadCertificate = async (req, res, next) => {
       });
     }
 
-    // In a real application, this would generate and return a PDF
-    // For now, we'll return the certificate data
-    res.json({
-      success: true,
-      message: 'Certificate download initiated',
-      data: {
-        certificateUrl: certificate.certificateUrl,
-        certificate: {
-          certificateNumber: certificate.certificateNumber,
-          student: certificate.student,
-          course: certificate.course,
-          instructor: certificate.instructor,
-          issueDate: certificate.issueDate,
-          score: certificate.score,
-          grade: certificate.grade,
-          certificateType: certificate.certificateType,
-          certificateLevel: certificate.certificateLevel,
-          qrCode: certificate.qrCode,
-          verificationCode: certificate.verificationCode
-        }
-      }
+    // Generate PDF certificate
+    const pdfGenerator = new CertificatePDFGenerator();
+    const pdfDoc = await pdfGenerator.generateCertificate({
+      certificateNumber: certificate.certificateNumber,
+      student: certificate.student,
+      course: certificate.course,
+      instructor: certificate.instructor,
+      issueDate: certificate.issueDate,
+      expiryDate: certificate.expiryDate,
+      score: certificate.score,
+      grade: certificate.grade,
+      certificateType: certificate.certificateType,
+      certificateLevel: certificate.certificateLevel,
+      verificationCode: certificate.verificationCode,
+      issuedBy: certificate.issuedBy,
+      qrCode: certificate.qrCode
     });
+
+    // Set response headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="certificate-${certificate.certificateNumber}.pdf"`);
+
+    // Pipe the PDF to the response
+    pdfDoc.pipe(res);
+    pdfDoc.end();
   } catch (error) {
+    console.error('Certificate download error:', error);
     next(error);
   }
 };
@@ -421,6 +426,64 @@ const revokeCertificate = async (req, res, next) => {
   }
 };
 
+// @desc    View certificate in browser
+// @route   GET /api/certificates/:id/view
+// @access  Private
+const viewCertificate = async (req, res, next) => {
+  try {
+    const certificate = await Certificate.findById(req.params.id)
+      .populate('student', 'firstName lastName')
+      .populate('course', 'title description')
+      .populate('instructor', 'firstName lastName');
+
+    if (!certificate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Certificate not found'
+      });
+    }
+
+    // Check if user is authorized to view this certificate
+    if (certificate.student._id.toString() !== req.user.id && 
+        req.user.role !== 'admin' && 
+        req.user.role !== 'instructor') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this certificate'
+      });
+    }
+
+    // Generate PDF certificate
+    const pdfGenerator = new CertificatePDFGenerator();
+    const pdfDoc = await pdfGenerator.generateCertificate({
+      certificateNumber: certificate.certificateNumber,
+      student: certificate.student,
+      course: certificate.course,
+      instructor: certificate.instructor,
+      issueDate: certificate.issueDate,
+      expiryDate: certificate.expiryDate,
+      score: certificate.score,
+      grade: certificate.grade,
+      certificateType: certificate.certificateType,
+      certificateLevel: certificate.certificateLevel,
+      verificationCode: certificate.verificationCode,
+      issuedBy: certificate.issuedBy,
+      qrCode: certificate.qrCode
+    });
+
+    // Set response headers for PDF viewing in browser
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="certificate-${certificate.certificateNumber}.pdf"`);
+
+    // Pipe the PDF to the response
+    pdfDoc.pipe(res);
+    pdfDoc.end();
+  } catch (error) {
+    console.error('Certificate view error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   generateCertificate,
   getMyCertificates,
@@ -428,5 +491,6 @@ module.exports = {
   verifyCertificate,
   downloadCertificate,
   getAllCertificates,
-  revokeCertificate
+  revokeCertificate,
+  viewCertificate
 }; 

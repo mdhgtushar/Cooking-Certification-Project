@@ -7,7 +7,8 @@ const {
   verifyCertificate,
   downloadCertificate,
   getAllCertificates,
-  revokeCertificate
+  revokeCertificate,
+  viewCertificate
 } = require('./certificate.controller');
 const { protect, authorize } = require('../../middleware/auth.middleware');
 
@@ -21,6 +22,7 @@ router.use(protect);
 router.get('/my-certificates', getMyCertificates);
 router.get('/:id', getCertificateById);
 router.get('/:id/download', downloadCertificate);
+router.get('/:id/view', viewCertificate);
 
 // Admin/Instructor routes
 router.post('/', authorize('admin', 'instructor'), generateCertificate);

@@ -815,23 +815,38 @@ const createExam = async (req, res, next) => {
     console.log('Creating exam:', req.body);
 
     const {
-      studentName,
-      studentEmail,
+      studentId,
       courseId,
-      courseName,
       examDate,
+      examTime,
       duration,
-      status = 'scheduled',
-      examNumber,
-      score,
-      passed
+      location,
+      status = 'scheduled'
     } = req.body;
 
     // Validate required fields
-    if (!studentName || !studentEmail || !courseId || !examDate) {
+    if (!studentId || !courseId || !examDate) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide student name, email, course ID, and exam date'
+        message: 'Please provide student ID, course ID, and exam date'
+      });
+    }
+
+    // Verify student exists
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Verify course exists
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course not found'
       });
     }
 
@@ -839,30 +854,37 @@ const createExam = async (req, res, next) => {
     const exam = await Exam.create({
       course: courseId,
       application: null, // Will be set to null for admin-created exams
-      student: null, // Will be set to null for admin-created exams
+      student: studentId,
       examType: 'offline',
       status,
       examDate,
-      examTime: '09:00', // Default time
+      examTime: examTime || '09:00',
       duration: duration || 120,
-      location: 'TBD',
+      location: location || 'TBD',
       proctor: req.user.id,
       questions: [], // Empty questions array
       answers: [], // Empty answers array
       score: {
         total: 100,
-        obtained: score || 0,
-        percentage: score ? (score / 100) * 100 : 0
+        obtained: 0,
+        percentage: 0
       },
       passingScore: 70,
-      result: passed ? 'pass' : (passed === false ? 'fail' : 'pending'),
+      result: 'pending',
       notes: {
         student: '',
         proctor: '',
-        admin: `Admin-created exam for ${studentName}`
+        admin: `Admin-created exam for ${student.firstName} ${student.lastName}`
       },
       createdBy: req.user.id
     });
+
+    // Populate the exam with student and course details
+    await exam.populate([
+      { path: 'student', select: 'firstName lastName email' },
+      { path: 'course', select: 'title description' },
+      { path: 'proctor', select: 'firstName lastName' }
+    ]);
 
     console.log('Exam created successfully:', exam._id);
 
@@ -884,31 +906,54 @@ const createCertificate = async (req, res, next) => {
     console.log('Creating certificate:', req.body);
 
     const {
-      studentName,
-      studentEmail,
+      studentId,
       courseId,
-      courseName,
       issueDate,
       status = 'active',
       certificateNumber,
       expiryDate,
-      verified = true
+      verified = true,
+      grade = 'A',
+      certificateType = 'completion',
+      certificateLevel = 'beginner'
     } = req.body;
 
     // Validate required fields
-    if (!studentName || !studentEmail || !courseId) {
+    if (!studentId || !courseId) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide student name, email, and course ID'
+        message: 'Please provide student ID and course ID'
       });
     }
 
+    // Verify student exists
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Verify course exists
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course not found'
+      });
+    }
+
+    // Generate certificate number and verification code
+    const certNumber = certificateNumber || Certificate.generateCertificateNumber();
+    const verificationCode = Certificate.generateVerificationCode();
+
     // Create certificate
     const certificate = await Certificate.create({
-      certificateNumber: certificateNumber || Certificate.generateCertificateNumber(),
-      student: null, // Will be set to null for admin-created certificates
+      certificateNumber: certNumber,
+      student: studentId,
       course: courseId,
-      exam: null, // Will be set to null for admin-created certificates
+      exam: null, // Optional for admin-created certificates
       instructor: req.user.id,
       issueDate: issueDate || new Date(),
       expiryDate: expiryDate || new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
@@ -918,16 +963,16 @@ const createCertificate = async (req, res, next) => {
         obtained: 100,
         percentage: 100
       },
-      grade: 'A',
-      certificateType: 'completion',
-      certificateLevel: 'beginner',
-      certificateUrl: `https://example.com/certificates/${certificateNumber || 'temp'}`,
-      qrCode: `https://example.com/verify/${certificateNumber || 'temp'}`,
-      verificationCode: Certificate.generateVerificationCode(),
+      grade,
+      certificateType,
+      certificateLevel,
+      certificateUrl: `${process.env.BASE_URL || 'http://localhost:5000'}/certificates/${certNumber}`,
+      qrCode: `${process.env.BASE_URL || 'http://localhost:5000'}/verify/${verificationCode}`,
+      verificationCode,
       issuedBy: 'Cooking Certification Institute',
       authorizedBy: req.user.id,
       metadata: {
-        courseDuration: 0,
+        courseDuration: course.duration || 0,
         examDuration: 0,
         totalQuestions: 0,
         passingScore: 70,
@@ -937,6 +982,13 @@ const createCertificate = async (req, res, next) => {
       },
       createdBy: req.user.id
     });
+
+    // Populate the certificate with student and course details
+    await certificate.populate([
+      { path: 'student', select: 'firstName lastName email' },
+      { path: 'course', select: 'title description' },
+      { path: 'instructor', select: 'firstName lastName' }
+    ]);
 
     console.log('Certificate created successfully:', certificate._id);
 

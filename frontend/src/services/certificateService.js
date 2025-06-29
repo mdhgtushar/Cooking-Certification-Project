@@ -60,6 +60,13 @@ const certificateService = {
     });
   },
 
+  // View certificate in browser
+  viewCertificate: async (id) => {
+    return api.get(API_ENDPOINTS.VIEW_CERTIFICATE(id), {
+      responseType: 'blob'
+    });
+  },
+
   // Get all certificates (admin only)
   getAllCertificates: async (params = {}) => {
     return api.get(API_ENDPOINTS.CERTIFICATES, { params });

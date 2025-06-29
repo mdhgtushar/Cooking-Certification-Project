@@ -8,8 +8,7 @@ const examSchema = new mongoose.Schema({
   },
   application: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Application',
-    required: [true, 'Application is required']
+    ref: 'Application'
   },
   student: {
     type: mongoose.Schema.Types.ObjectId,
@@ -183,6 +182,17 @@ examSchema.index({ status: 1 });
 examSchema.index({ examDate: 1 });
 examSchema.index({ proctor: 1 });
 examSchema.index({ result: 1 });
+
+// Pre-save validation for admin-created exams
+examSchema.pre('save', function(next) {
+  // If no application is provided (admin-created exam), ensure required fields are present
+  if (!this.application) {
+    if (!this.course || !this.student || !this.examDate || !this.examTime || !this.duration) {
+      return next(new Error('Admin-created exams require course, student, exam date, time, and duration'));
+    }
+  }
+  next();
+});
 
 // Calculate score and result
 examSchema.methods.calculateScore = function() {

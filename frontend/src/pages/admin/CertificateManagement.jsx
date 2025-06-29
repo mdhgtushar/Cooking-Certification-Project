@@ -1,31 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
-import { fetchCertificates, updateCertificate, revokeCertificate, createCertificate } from '../../store/adminSlice';
+import { fetchCertificates, updateCertificate, revokeCertificate, createCertificate, fetchUsers, fetchCourses } from '../../store/adminSlice';
+import certificateService from '../../services/certificateService';
 
 const CertificateManagement = () => {
   const dispatch = useDispatch();
-  const { certificates, loading } = useSelector(state => state.admin);
+  const { 
+    certificates = [], 
+    users = [], 
+    courses = [], 
+    certificatesLoading = false,
+    usersLoading = false,
+    coursesLoading = false
+  } = useSelector(state => state.admin);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedCertificates, setSelectedCertificates] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [generationAction, setGenerationAction] = useState('view'); // 'view' or 'download'
   const [createForm, setCreateForm] = useState({
-    studentName: '',
-    studentEmail: '',
+    studentId: '',
     courseId: '',
-    courseName: '',
-    issueDate: new Date().toISOString().split('T')[0]
+    issueDate: new Date().toISOString().split('T')[0],
+    grade: 'A',
+    certificateType: 'completion',
+    certificateLevel: 'beginner'
   });
 
   useEffect(() => {
     dispatch(fetchCertificates());
+    dispatch(fetchUsers());
+    dispatch(fetchCourses());
   }, [dispatch]);
 
   const filteredCertificates = certificates.filter(cert => {
-    const matchesSearch = cert.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         cert.certificateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         cert.courseName.toLowerCase().includes(searchTerm.toLowerCase());
+    const studentName = cert.student?.firstName || cert.studentName || '';
+    const certificateNumber = cert.certificateNumber || '';
+    const courseName = cert.course?.title || cert.courseName || '';
+    
+    const matchesSearch = studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         certificateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         courseName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || cert.status === statusFilter;
     
     return matchesSearch && matchesStatus;
@@ -55,11 +71,12 @@ const CertificateManagement = () => {
       active: 'bg-success-100 text-success-800',
       expired: 'bg-danger-100 text-danger-800',
       pending: 'bg-warning-100 text-warning-800',
-      revoked: 'bg-gray-100 text-gray-800'
+      revoked: 'bg-gray-100 text-gray-800',
+      unknown: 'bg-gray-100 text-gray-800'
     };
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClasses[status]}`}>
-        {status}
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClasses[status] || statusClasses.unknown}`}>
+        {status || 'unknown'}
       </span>
     );
   };
@@ -83,23 +100,58 @@ const CertificateManagement = () => {
   };
 
   const isExpired = (expiryDate) => {
+    if (!expiryDate) return false;
     return new Date(expiryDate) < new Date();
+  };
+
+  const handleViewCertificate = async (certId) => {
+    try {
+      const response = await certificateService.viewCertificate(certId);
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch (error) {
+      toast.error('Failed to view certificate');
+      console.error('View certificate error:', error);
+    }
+  };
+
+  const handleDownloadCertificate = async (certId) => {
+    try {
+      const response = await certificateService.downloadCertificate(certId);
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `certificate-${certId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success('Certificate downloaded successfully');
+    } catch (error) {
+      toast.error('Failed to download certificate');
+      console.error('Download certificate error:', error);
+    }
   };
 
   const handleCreateCertificate = () => {
     // Add validation
-    if (!createForm.studentName || !createForm.studentEmail || !createForm.courseId) {
+    if (!createForm.studentId || !createForm.courseId) {
       toast.error('Please fill in all required fields');
       return;
     }
 
     // Create certificate data
     const certificateData = {
-      ...createForm,
+      studentId: createForm.studentId,
+      courseId: createForm.courseId,
+      issueDate: createForm.issueDate,
+      grade: createForm.grade,
+      certificateType: createForm.certificateType,
+      certificateLevel: createForm.certificateLevel,
       status: 'active',
-      certificateNumber: `CERT-${Date.now()}`,
-      expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      verified: true
+      expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     };
 
     // Dispatch create action
@@ -108,13 +160,27 @@ const CertificateManagement = () => {
         if (result.meta.requestStatus === 'fulfilled') {
           setShowCreateModal(false);
           setCreateForm({
-            studentName: '',
-            studentEmail: '',
+            studentId: '',
             courseId: '',
-            courseName: '',
-            issueDate: new Date().toISOString().split('T')[0]
+            issueDate: new Date().toISOString().split('T')[0],
+            grade: 'A',
+            certificateType: 'completion',
+            certificateLevel: 'beginner'
           });
+          setGenerationAction('view');
           toast.success('Certificate generated successfully');
+          
+          // Automatically view the generated certificate
+          const newCertificate = result.payload;
+          if (newCertificate && newCertificate._id) {
+            setTimeout(() => {
+              if (generationAction === 'view') {
+                handleViewCertificate(newCertificate._id);
+              } else if (generationAction === 'download') {
+                handleDownloadCertificate(newCertificate._id);
+              }
+            }, 1000);
+          }
         } else {
           toast.error('Failed to generate certificate');
         }
@@ -124,7 +190,7 @@ const CertificateManagement = () => {
       });
   };
 
-  if (loading) {
+  if (certificatesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -291,52 +357,58 @@ const CertificateManagement = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredCertificates.map((cert) => (
-                <tr key={cert.id} className="hover:bg-gray-50">
+                <tr key={cert._id || cert.id || Math.random()} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {cert.certificateNumber}
+                      {cert.certificateNumber || 'N/A'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {cert.studentName}
+                        {cert.student?.firstName || cert.studentName || 'Unknown'} {cert.student?.lastName || ''}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {cert.studentEmail}
+                        {cert.student?.email || cert.studentEmail || 'No email'}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {cert.courseName}
+                      {cert.course?.title || cert.courseName || 'Unknown Course'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(cert.issueDate).toLocaleDateString()}
+                    {cert.issueDate ? new Date(cert.issueDate).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className={`text-sm ${isExpired(cert.expiryDate) ? 'text-danger-600' : 'text-gray-500'}`}>
-                      {new Date(cert.expiryDate).toLocaleDateString()}
+                    <div className={`text-sm ${cert.expiryDate && isExpired(cert.expiryDate) ? 'text-danger-600' : 'text-gray-500'}`}>
+                      {cert.expiryDate ? new Date(cert.expiryDate).toLocaleDateString() : 'N/A'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(cert.status)}
+                    {getStatusBadge(cert.status || 'unknown')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {getVerificationBadge(cert.verified)}
+                    {getVerificationBadge(cert.verified || false)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
                       <button
-                        onClick={() => window.open(`/certificates/${cert.id}`, '_blank')}
+                        onClick={() => handleViewCertificate(cert._id || cert.id)}
                         className="text-primary-600 hover:text-primary-900 text-sm"
                       >
                         View
                       </button>
+                      <button
+                        onClick={() => handleDownloadCertificate(cert._id || cert.id)}
+                        className="text-info-600 hover:text-info-900 text-sm"
+                      >
+                        Download
+                      </button>
                       {!cert.verified && (
                         <button
-                          onClick={() => handleCertificateAction(cert.id, 'verify')}
+                          onClick={() => handleCertificateAction(cert._id || cert.id, 'verify')}
                           className="text-success-600 hover:text-success-900 text-sm"
                         >
                           Verify
@@ -344,7 +416,7 @@ const CertificateManagement = () => {
                       )}
                       {cert.status === 'expired' && (
                         <button
-                          onClick={() => handleCertificateAction(cert.id, 'renew')}
+                          onClick={() => handleCertificateAction(cert._id || cert.id, 'renew')}
                           className="text-warning-600 hover:text-warning-900 text-sm"
                         >
                           Renew
@@ -352,7 +424,7 @@ const CertificateManagement = () => {
                       )}
                       {cert.status !== 'revoked' && (
                         <button
-                          onClick={() => handleCertificateAction(cert.id, 'revoke')}
+                          onClick={() => handleCertificateAction(cert._id || cert.id, 'revoke')}
                           className="text-danger-600 hover:text-danger-900 text-sm"
                         >
                           Revoke
@@ -400,58 +472,48 @@ const CertificateManagement = () => {
               }} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Student Name *
+                    Select Student *
                   </label>
-                  <input
-                    type="text"
-                    value={createForm.studentName}
-                    onChange={(e) => setCreateForm({...createForm, studentName: e.target.value})}
+                  <select
+                    value={createForm.studentId}
+                    onChange={(e) => setCreateForm({...createForm, studentId: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter student name"
                     required
-                  />
+                    disabled={usersLoading}
+                  >
+                    <option value="">{usersLoading ? 'Loading students...' : 'Select a student'}</option>
+                    {Array.isArray(users) && users.map(user => {
+                      if (!user || typeof user !== 'object') return null;
+                      return (
+                        <option key={user._id || user.id || Math.random()} value={user._id || user.id}>
+                          {user.firstName || user.name || 'Unknown'} {user.lastName || ''} ({user.email || 'No email'})
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Student Email *
+                    Select Course *
                   </label>
-                  <input
-                    type="email"
-                    value={createForm.studentEmail}
-                    onChange={(e) => setCreateForm({...createForm, studentEmail: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter student email"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Course ID *
-                  </label>
-                  <input
-                    type="text"
+                  <select
                     value={createForm.courseId}
                     onChange={(e) => setCreateForm({...createForm, courseId: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter course ID"
                     required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Course Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.courseName}
-                    onChange={(e) => setCreateForm({...createForm, courseName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter course name"
-                    required
-                  />
+                    disabled={coursesLoading}
+                  >
+                    <option value="">{coursesLoading ? 'Loading courses...' : 'Select a course'}</option>
+                    {Array.isArray(courses) && courses.map(course => {
+                      if (!course || typeof course !== 'object') return null;
+                      return (
+                        <option key={course._id || course.id || Math.random()} value={course._id || course.id}>
+                          {course.title || course.name || 'Unknown Course'}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
                 
                 <div>
@@ -466,6 +528,74 @@ const CertificateManagement = () => {
                   />
                 </div>
                 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Grade
+                  </label>
+                  <select
+                    value={createForm.grade}
+                    onChange={(e) => setCreateForm({...createForm, grade: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="A+">A+</option>
+                    <option value="A">A</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B">B</option>
+                    <option value="B-">B-</option>
+                    <option value="C+">C+</option>
+                    <option value="C">C</option>
+                    <option value="C-">C-</option>
+                    <option value="D">D</option>
+                    <option value="F">F</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Certificate Type
+                  </label>
+                  <select
+                    value={createForm.certificateType}
+                    onChange={(e) => setCreateForm({...createForm, certificateType: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="completion">Completion</option>
+                    <option value="achievement">Achievement</option>
+                    <option value="excellence">Excellence</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Certificate Level
+                  </label>
+                  <select
+                    value={createForm.certificateLevel}
+                    onChange={(e) => setCreateForm({...createForm, certificateLevel: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                    <option value="expert">Expert</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    After Generation
+                  </label>
+                  <select
+                    value={generationAction}
+                    onChange={(e) => setGenerationAction(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="view">View Certificate</option>
+                    <option value="download">Download Certificate</option>
+                  </select>
+                </div>
+                
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
@@ -478,7 +608,7 @@ const CertificateManagement = () => {
                     type="submit"
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    Generate Certificate
+                    Generate & {generationAction === 'view' ? 'View' : 'Download'} Certificate
                   </button>
                 </div>
               </form>

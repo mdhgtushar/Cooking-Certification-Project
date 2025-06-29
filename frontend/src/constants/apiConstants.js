@@ -33,6 +33,7 @@ export const API_ENDPOINTS = {
   CERTIFICATE_BY_ID: (id) => `/certificates/${id}`,
   VERIFY_CERTIFICATE: (code) => `/certificates/verify/${code}`,
   DOWNLOAD_CERTIFICATE: (id) => `/certificates/${id}/download`,
+  VIEW_CERTIFICATE: (id) => `/certificates/${id}/view`,
   REVOKE_CERTIFICATE: (id) => `/certificates/${id}/revoke`,
   
   // Contacts

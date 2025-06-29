@@ -99,12 +99,12 @@ const AdminSidebar = ({ isOpen, onClose, currentPath }) => {
 
       {/* Sidebar */}
       <div className={`
-        w-64 bg-white shadow-lg transition-transform duration-300 ease-in-out flex flex-col h-screen
-        lg:translate-x-0 lg:static lg:block
+        w-64 bg-white shadow-lg border-r border-gray-200 transition-transform duration-300 ease-in-out flex flex-col
+        lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:translate-x-0
         ${isOpen ? 'fixed inset-y-0 left-0 z-50 translate-x-0' : 'fixed inset-y-0 left-0 z-50 -translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className="flex items-center justify-center h-16 bg-primary-600">
+        <div className="flex items-center justify-center h-16 bg-primary-600 flex-shrink-0">
           <div className="flex items-center">
             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mr-3">
               <span className="text-primary-600 font-bold text-lg">C</span>
@@ -114,7 +114,7 @@ const AdminSidebar = ({ isOpen, onClose, currentPath }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="mt-8 px-4 flex-1">
+        <nav className="mt-8 px-4 flex-1 overflow-y-auto">
           <div className="space-y-2">
             {navigation.map((item) => (
               <Link
@@ -141,7 +141,7 @@ const AdminSidebar = ({ isOpen, onClose, currentPath }) => {
         </nav>
 
         {/* Bottom section */}
-        <div className="p-4 mt-auto">
+        <div className="p-4 mt-auto flex-shrink-0">
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">

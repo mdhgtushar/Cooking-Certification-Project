@@ -13,7 +13,14 @@ import {
 
 const ApplicationManagement = () => {
   const dispatch = useDispatch();
-  const { applications = [], users = [], courses = [], loading } = useSelector(state => state.admin);
+  const { 
+    applications = [], 
+    users = [], 
+    courses = [], 
+    applicationsLoading = false,
+    usersLoading = false,
+    coursesLoading = false
+  } = useSelector(state => state.admin);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [courseFilter, setCourseFilter] = useState('all');
@@ -60,18 +67,37 @@ const ApplicationManagement = () => {
     }
   });
 
+  // Ensure arrays are actually arrays and contain valid objects
+  const safeApplications = Array.isArray(applications) ? applications.filter(app => app && typeof app === 'object') : [];
+  const safeUsers = Array.isArray(users) ? users.filter(user => user && typeof user === 'object') : [];
+  const safeCourses = Array.isArray(courses) ? courses.filter(course => course && typeof course === 'object') : [];
+
+  // Additional safety check to ensure no objects are rendered directly
+  const safeString = (value) => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return value.toString();
+    if (typeof value === 'boolean') return value.toString();
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return '';
+  };
+
   useEffect(() => {
     dispatch(fetchApplications());
     dispatch(fetchUsers());
     dispatch(fetchCourses());
   }, [dispatch]);
 
-  const filteredApplications = (applications || []).filter(app => {
-    const matchesSearch = (app.studentName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (app.applicationNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (app.courseName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+  const filteredApplications = (safeApplications || []).filter(app => {
+    const applicantName = safeString(app.applicant?.firstName || '') + ' ' + safeString(app.applicant?.lastName || '');
+    const applicationNumber = safeString(app.applicationNumber || '');
+    const courseTitle = safeString(app.course?.title || app.courseName || '');
+    
+    const matchesSearch = applicantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         applicationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         courseTitle.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-    const matchesCourse = courseFilter === 'all' || (app.courseId?.toString() || '') === courseFilter;
+    const matchesCourse = courseFilter === 'all' || (app.course?._id?.toString() || '') === courseFilter;
     
     return matchesSearch && matchesStatus && matchesCourse;
   });
@@ -79,15 +105,24 @@ const ApplicationManagement = () => {
   const handleApplicationAction = (appId, action) => {
     switch (action) {
       case 'approve':
-        dispatch(updateApplication({ id: appId, status: 'approved', reviewDate: new Date().toISOString().split('T')[0] }));
+        dispatch(updateApplication({ 
+          applicationId: appId, 
+          applicationData: { status: 'approved', reviewDate: new Date().toISOString().split('T')[0] }
+        }));
         toast.success('Application approved successfully');
         break;
       case 'reject':
-        dispatch(updateApplication({ id: appId, status: 'rejected', reviewDate: new Date().toISOString().split('T')[0] }));
+        dispatch(updateApplication({ 
+          applicationId: appId, 
+          applicationData: { status: 'rejected', reviewDate: new Date().toISOString().split('T')[0] }
+        }));
         toast.success('Application rejected successfully');
         break;
       case 'hold':
-        dispatch(updateApplication({ id: appId, status: 'on-hold', reviewDate: new Date().toISOString().split('T')[0] }));
+        dispatch(updateApplication({ 
+          applicationId: appId, 
+          applicationData: { status: 'on-hold', reviewDate: new Date().toISOString().split('T')[0] }
+        }));
         toast.success('Application put on hold');
         break;
       default:
@@ -105,12 +140,22 @@ const ApplicationManagement = () => {
     
     switch (action) {
       case 'approve':
-        dispatch(updateApplication({ id: selectedApplications, status: 'approved', reviewDate: currentDate }));
+        selectedApplications.forEach(appId => {
+          dispatch(updateApplication({ 
+            applicationId: appId, 
+            applicationData: { status: 'approved', reviewDate: currentDate }
+          }));
+        });
         setSelectedApplications([]);
         toast.success(`${selectedApplications.length} applications approved successfully`);
         break;
       case 'reject':
-        dispatch(updateApplication({ id: selectedApplications, status: 'rejected', reviewDate: currentDate }));
+        selectedApplications.forEach(appId => {
+          dispatch(updateApplication({ 
+            applicationId: appId, 
+            applicationData: { status: 'rejected', reviewDate: currentDate }
+          }));
+        });
         setSelectedApplications([]);
         toast.success(`${selectedApplications.length} applications rejected successfully`);
         break;
@@ -134,7 +179,10 @@ const ApplicationManagement = () => {
   };
 
   const getCourses = () => {
-    const courses = [...new Set((applications || []).map(app => ({ id: app.courseId, name: app.courseName })))];
+    const courses = [...new Set((safeApplications || []).map(app => ({ 
+      id: app.course?._id || app.courseId, 
+      name: safeString(app.course?.title || app.courseName) 
+    })))];
     return courses.filter((course, index, self) => 
       index === self.findIndex(c => c.id === course.id)
     );
@@ -210,7 +258,7 @@ const ApplicationManagement = () => {
       });
   };
 
-  if (loading) {
+  if (applicationsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -403,7 +451,7 @@ const ApplicationManagement = () => {
                     type="checkbox"
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedApplications(filteredApplications.map(app => app.id));
+                        setSelectedApplications(filteredApplications.map(app => app._id || app.id));
                       } else {
                         setSelectedApplications([]);
                       }
@@ -437,16 +485,16 @@ const ApplicationManagement = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredApplications.map((app) => (
-                <tr key={app.id} className="hover:bg-gray-50">
+                <tr key={app._id || app.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
                       type="checkbox"
-                      checked={selectedApplications.includes(app.id)}
+                      checked={selectedApplications.includes(app._id || app.id)}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelectedApplications([...selectedApplications, app.id]);
+                          setSelectedApplications([...selectedApplications, app._id || app.id]);
                         } else {
-                          setSelectedApplications(selectedApplications.filter(id => id !== app.id));
+                          setSelectedApplications(selectedApplications.filter(id => id !== (app._id || app.id)));
                         }
                       }}
                       className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
@@ -454,39 +502,46 @@ const ApplicationManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {app.applicationNumber}
+                      {safeString(app.applicationNumber)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {app.studentName}
+                        {safeString(app.applicant?.firstName || '')} {safeString(app.applicant?.lastName || '')}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {app.studentEmail}
+                        {safeString(app.applicant?.email || 'No email')}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {app.courseName}
+                      {safeString(app.course?.title || app.courseName || 'Unknown Course')}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(app.submittedDate).toLocaleDateString()}
+                    {(() => {
+                      try {
+                        const date = new Date(app.createdAt || app.submittedDate);
+                        return isNaN(date.getTime()) ? 'Invalid date' : date.toLocaleDateString();
+                      } catch (error) {
+                        return 'Invalid date';
+                      }
+                    })()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getStatusBadge(app.status)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 max-w-xs truncate" title={app.notes}>
-                      {app.notes}
+                    <div className="text-sm text-gray-900 max-w-xs truncate" title={safeString(app.notes?.admin || app.notes)}>
+                      {safeString(app.notes?.admin || app.notes || 'No notes')}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
                       <button
-                        onClick={() => window.open(`/applications/${app.id}`, '_blank')}
+                        onClick={() => window.open(`/applications/${app._id || app.id}`, '_blank')}
                         className="text-primary-600 hover:text-primary-900 text-sm"
                       >
                         View
@@ -494,19 +549,19 @@ const ApplicationManagement = () => {
                       {app.status === 'pending' && (
                         <>
                           <button
-                            onClick={() => handleApplicationAction(app.id, 'approve')}
+                            onClick={() => handleApplicationAction(app._id || app.id, 'approve')}
                             className="text-success-600 hover:text-success-900 text-sm"
                           >
                             Approve
                           </button>
                           <button
-                            onClick={() => handleApplicationAction(app.id, 'reject')}
+                            onClick={() => handleApplicationAction(app._id || app.id, 'reject')}
                             className="text-danger-600 hover:text-danger-900 text-sm"
                           >
                             Reject
                           </button>
                           <button
-                            onClick={() => handleApplicationAction(app.id, 'hold')}
+                            onClick={() => handleApplicationAction(app._id || app.id, 'hold')}
                             className="text-info-600 hover:text-info-900 text-sm"
                           >
                             Hold
@@ -564,11 +619,14 @@ const ApplicationManagement = () => {
                     required
                   >
                     <option value="">Select a student</option>
-                    {users && users.map(user => (
-                      <option key={user._id} value={user._id}>
-                        {user.firstName} {user.lastName} ({user.email})
-                      </option>
-                    ))}
+                    {Array.isArray(users) && users.map(user => {
+                      if (!user || typeof user !== 'object') return null;
+                      return (
+                        <option key={user._id || user.id || Math.random()} value={user._id || user.id}>
+                          {safeString(user.firstName || user.name || 'Unknown')} {safeString(user.lastName || '')} ({safeString(user.email || 'No email')})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 
@@ -583,11 +641,14 @@ const ApplicationManagement = () => {
                     required
                   >
                     <option value="">Select a course</option>
-                    {courses && courses.map(course => (
-                      <option key={course._id} value={course._id}>
-                        {course.title}
-                      </option>
-                    ))}
+                    {Array.isArray(courses) && courses.map(course => {
+                      if (!course || typeof course !== 'object') return null;
+                      return (
+                        <option key={course._id || course.id || Math.random()} value={course._id || course.id}>
+                          {safeString(course.title || course.name || 'Unknown Course')}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 
