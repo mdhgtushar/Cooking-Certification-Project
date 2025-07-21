@@ -13,12 +13,10 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 
 const UserManagement = () => {
   const dispatch = useDispatch();
-  const { 
-    users, 
-    usersLoading, 
-    usersError, 
-    usersPagination 
-  } = useSelector((state) => state.admin);
+  const users = useSelector(state => state.admin.users) || [];
+  const usersLoading = useSelector(state => state.admin.usersLoading);
+  const usersError = useSelector(state => state.admin.usersError);
+  const usersPagination = useSelector(state => state.admin.usersPagination) || { page: 1, limit: 10, total: 0, pages: 0 };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -137,7 +135,7 @@ const UserManagement = () => {
 
   const handleSelectAll = (checked) => {
     if (checked) {
-      setSelectedUsers(users.map(user => user._id));
+      setSelectedUsers((users || []).map(user => user._id));
     } else {
       setSelectedUsers([]);
     }
@@ -305,6 +303,9 @@ const UserManagement = () => {
       )}
 
       {/* Users Table */}
+      {(users || []).length === 0 ? (
+        <div className="text-center text-gray-500">No users found.</div>
+      ) : (
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -336,7 +337,7 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.map((user) => (
+                {(users || []).map((user) => (
                 <tr key={user._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
@@ -477,6 +478,7 @@ const UserManagement = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (

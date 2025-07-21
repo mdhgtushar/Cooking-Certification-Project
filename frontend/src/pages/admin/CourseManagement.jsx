@@ -2,22 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { 
-  fetchCourses, 
+  getAllCourses, 
   createCourse, 
   updateCourse, 
   deleteCourse,
   clearError 
-} from '../../store/adminSlice';
+} from '../../store/courseSlice';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
 const CourseManagement = () => {
   const dispatch = useDispatch();
   const { 
     courses, 
-    coursesLoading, 
-    coursesError, 
-    coursesPagination 
-  } = useSelector((state) => state.admin);
+    loading, 
+    error, 
+    pagination 
+  } = useSelector((state) => state.courses);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -61,11 +61,11 @@ const CourseManagement = () => {
   }, [currentPage, pageSize, searchTerm, statusFilter]);
 
   useEffect(() => {
-    if (coursesError) {
-      toast.error(coursesError);
+    if (error) {
+      toast.error(error);
       dispatch(clearError('courses'));
     }
-  }, [coursesError, dispatch]);
+  }, [error, dispatch]);
 
   const loadCourses = async () => {
     const params = {
@@ -76,7 +76,7 @@ const CourseManagement = () => {
       ...(!statusFilter && { status: 'all' })
     };
     
-    dispatch(fetchCourses(params));
+    dispatch(getAllCourses(params));
   };
 
   const handleCourseAction = async (courseId, action, courseData = {}) => {
@@ -261,7 +261,7 @@ const CourseManagement = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
-  if (coursesLoading && courses.length === 0) {
+  if (loading && courses.length === 0) {
     return <LoadingSpinner />;
   }
 
@@ -450,7 +450,7 @@ const CourseManagement = () => {
         </div>
 
         {/* Pagination */}
-        {coursesPagination && coursesPagination.pages > 1 && (
+        {pagination && pagination.pages > 1 && (
           <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
             <div className="flex-1 flex justify-between sm:hidden">
               <button
@@ -462,7 +462,7 @@ const CourseManagement = () => {
               </button>
               <button
                 onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage === coursesPagination.pages}
+                disabled={currentPage === pagination.pages}
                 className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
                 Next
@@ -475,10 +475,10 @@ const CourseManagement = () => {
                   <span className="font-medium">{(currentPage - 1) * pageSize + 1}</span>
                   {' '}to{' '}
                   <span className="font-medium">
-                    {Math.min(currentPage * pageSize, coursesPagination.total)}
+                    {Math.min(currentPage * pageSize, pagination.total)}
                   </span>
                   {' '}of{' '}
-                  <span className="font-medium">{coursesPagination.total}</span>
+                  <span className="font-medium">{pagination.total}</span>
                   {' '}results
                 </p>
               </div>
@@ -491,7 +491,7 @@ const CourseManagement = () => {
                   >
                     Previous
                   </button>
-                  {Array.from({ length: coursesPagination.pages }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
@@ -506,7 +506,7 @@ const CourseManagement = () => {
                   ))}
                   <button
                     onClick={() => setCurrentPage(currentPage + 1)}
-                    disabled={currentPage === coursesPagination.pages}
+                    disabled={currentPage === pagination.pages}
                     className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Next

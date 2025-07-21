@@ -133,7 +133,7 @@ const Dashboard = () => {
     );
   }
 
-  const { users, courses, applications, exams, certificates, contacts, recentActivities } = dashboardStats;
+  const { users = {}, courses = {}, applications = {}, exams = {}, certificates = {}, contacts = {}, recentActivities = {} } = dashboardStats || {};
 
   return (
     <div className="space-y-6">

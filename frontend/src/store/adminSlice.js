@@ -314,6 +314,18 @@ export const createCertificate = createAsyncThunk(
   }
 );
 
+export const reviewApplication = createAsyncThunk(
+  'admin/reviewApplication',
+  async ({ applicationId, reviewData }, { rejectWithValue }) => {
+    try {
+      const response = await adminService.reviewApplication(applicationId, reviewData);
+      return { applicationId, applicationData: response.data.data.application };
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 // Initial state
 const initialState = {
   // Dashboard
@@ -450,8 +462,15 @@ const adminSlice = createSlice({
       })
       .addCase(fetchUsers.fulfilled, (state, action) => {
         state.usersLoading = false;
-        state.users = action.payload.data.users;
-        state.usersPagination = action.payload.data.pagination;
+        state.users =
+          action.payload?.data?.users ||
+          action.payload?.users ||
+          action.payload?.data ||
+          [];
+        state.usersPagination =
+          action.payload?.data?.pagination ||
+          action.payload?.pagination ||
+          { page: 1, limit: 10, total: 0, pages: 0 };
       })
       .addCase(fetchUsers.rejected, (state, action) => {
         state.usersLoading = false;
@@ -485,8 +504,8 @@ const adminSlice = createSlice({
       })
       .addCase(fetchCertificates.fulfilled, (state, action) => {
         state.certificatesLoading = false;
-        state.certificates = action.payload.data.certificates;
-        state.certificatesPagination = action.payload.data.pagination;
+        state.certificates = (action.payload?.data?.certificates) || [];
+        state.certificatesPagination = (action.payload?.data?.pagination) || { page: 1, limit: 10, total: 0, pages: 0 };
       })
       .addCase(fetchCertificates.rejected, (state, action) => {
         state.certificatesLoading = false;
@@ -516,9 +535,10 @@ const adminSlice = createSlice({
         state.applicationsError = null;
       })
       .addCase(fetchApplications.fulfilled, (state, action) => {
+        console.log('fetchApplications API response:', action.payload);
         state.applicationsLoading = false;
-        state.applications = action.payload.data.applications;
-        state.applicationsPagination = action.payload.data.pagination;
+        state.applications = action.payload?.applications || action.payload?.data?.applications || [];
+        state.applicationsPagination = action.payload?.pagination || action.payload?.data?.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
       })
       .addCase(fetchApplications.rejected, (state, action) => {
         state.applicationsLoading = false;
@@ -546,6 +566,13 @@ const adminSlice = createSlice({
       })
       .addCase(createApplication.fulfilled, (state, action) => {
         state.applications.unshift(action.payload.data);
+      })
+      .addCase(reviewApplication.fulfilled, (state, action) => {
+        const { applicationId, applicationData } = action.payload;
+        const index = state.applications.findIndex(app => app._id === applicationId);
+        if (index !== -1) {
+          state.applications[index] = { ...state.applications[index], ...applicationData };
+        }
       });
 
     // Exams
@@ -556,8 +583,8 @@ const adminSlice = createSlice({
       })
       .addCase(fetchExams.fulfilled, (state, action) => {
         state.examsLoading = false;
-        state.exams = action.payload.data.exams;
-        state.examsPagination = action.payload.data.pagination;
+        state.exams = (action.payload?.data?.exams) || [];
+        state.examsPagination = (action.payload?.data?.pagination) || { page: 1, limit: 10, total: 0, pages: 0 };
       })
       .addCase(fetchExams.rejected, (state, action) => {
         state.examsLoading = false;
@@ -589,8 +616,8 @@ const adminSlice = createSlice({
       })
       .addCase(fetchContacts.fulfilled, (state, action) => {
         state.contactsLoading = false;
-        state.contacts = action.payload.contacts;
-        state.contactsPagination = action.payload.pagination;
+        state.contacts = (action.payload?.contacts) || [];
+        state.contactsPagination = (action.payload?.pagination) || { page: 1, limit: 10, total: 0, pages: 0 };
       })
       .addCase(fetchContacts.rejected, (state, action) => {
         state.contactsLoading = false;
@@ -615,8 +642,8 @@ const adminSlice = createSlice({
       })
       .addCase(fetchCourses.fulfilled, (state, action) => {
         state.coursesLoading = false;
-        state.courses = action.payload.data.courses;
-        state.coursesPagination = action.payload.data.pagination;
+        state.courses = (action.payload?.data?.courses) || [];
+        state.coursesPagination = (action.payload?.data?.pagination) || { page: 1, limit: 10, total: 0, pages: 0 };
       })
       .addCase(fetchCourses.rejected, (state, action) => {
         state.coursesLoading = false;

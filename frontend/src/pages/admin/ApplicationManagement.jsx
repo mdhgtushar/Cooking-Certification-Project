@@ -8,12 +8,17 @@ import {
   updateApplication, 
   createApplication,
   fetchUsers,
-  fetchCourses
+  fetchCourses,
+  reviewApplication
 } from '../../store/adminSlice';
 
 const ApplicationManagement = () => {
   const dispatch = useDispatch();
-  const { applications = [], users = [], courses = [], loading } = useSelector(state => state.admin);
+  const applications = useSelector(state => state.admin.applications) || [];
+  console.log("datas", applications)
+  const users = useSelector(state => state.admin.users);
+  const courses = useSelector(state => state.courses.courses);
+  const loading = useSelector(state => state.applications.loading || state.user.loading || state.courses.loading);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [courseFilter, setCourseFilter] = useState('all');
@@ -61,38 +66,46 @@ const ApplicationManagement = () => {
   });
 
   useEffect(() => {
-    dispatch(fetchApplications());
+    dispatch(fetchApplications()).then((result) => {
+      console.log('fetchApplications API response:', result.payload);
+    });
     dispatch(fetchUsers());
     dispatch(fetchCourses());
   }, [dispatch]);
 
+  useEffect(() => {
+    console.log("applications updated", applications);
+  }, [applications]);
+
   const filteredApplications = (applications || []).filter(app => {
-    const matchesSearch = (app.studentName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (app.applicationNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (app.courseName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    const matchesSearch = (
+      (app.applicant?.firstName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (app.applicant?.lastName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (app._id?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (app.course?.title?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    );
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-    const matchesCourse = courseFilter === 'all' || (app.courseId?.toString() || '') === courseFilter;
-    
+    const matchesCourse = courseFilter === 'all' || (app.course?._id?.toString() || '') === courseFilter;
     return matchesSearch && matchesStatus && matchesCourse;
   });
 
   const handleApplicationAction = (appId, action) => {
+    let status;
     switch (action) {
       case 'approve':
-        dispatch(updateApplication({ id: appId, status: 'approved', reviewDate: new Date().toISOString().split('T')[0] }));
-        toast.success('Application approved successfully');
+        status = 'approved';
         break;
       case 'reject':
-        dispatch(updateApplication({ id: appId, status: 'rejected', reviewDate: new Date().toISOString().split('T')[0] }));
-        toast.success('Application rejected successfully');
+        status = 'rejected';
         break;
       case 'hold':
-        dispatch(updateApplication({ id: appId, status: 'on-hold', reviewDate: new Date().toISOString().split('T')[0] }));
-        toast.success('Application put on hold');
+        status = 'on-hold';
         break;
       default:
-        break;
+        return;
     }
+    dispatch(reviewApplication({ applicationId: appId, reviewData: { status } }));
+    toast.success(`Application ${status} successfully`);
   };
 
   const handleBulkAction = (action) => {
@@ -100,23 +113,22 @@ const ApplicationManagement = () => {
       toast.warning('Please select applications first');
       return;
     }
-
-    const currentDate = new Date().toISOString().split('T')[0];
-    
+    let status;
     switch (action) {
       case 'approve':
-        dispatch(updateApplication({ id: selectedApplications, status: 'approved', reviewDate: currentDate }));
-        setSelectedApplications([]);
-        toast.success(`${selectedApplications.length} applications approved successfully`);
+        status = 'approved';
         break;
       case 'reject':
-        dispatch(updateApplication({ id: selectedApplications, status: 'rejected', reviewDate: currentDate }));
-        setSelectedApplications([]);
-        toast.success(`${selectedApplications.length} applications rejected successfully`);
+        status = 'rejected';
         break;
       default:
-        break;
+        return;
     }
+    selectedApplications.forEach(appId => {
+      dispatch(reviewApplication({ applicationId: appId, reviewData: { status } }));
+    });
+    setSelectedApplications([]);
+    toast.success(`${selectedApplications.length} applications ${status} successfully`);
   };
 
   const getStatusBadge = (status) => {
@@ -134,7 +146,7 @@ const ApplicationManagement = () => {
   };
 
   const getCourses = () => {
-    const courses = [...new Set((applications || []).map(app => ({ id: app.courseId, name: app.courseName })))];
+    const courses = [...new Set((applications || []).map(app => ({ id: app.course?._id, name: app.course?.title })))];
     return courses.filter((course, index, self) => 
       index === self.findIndex(c => c.id === course.id)
     );
@@ -403,7 +415,7 @@ const ApplicationManagement = () => {
                     type="checkbox"
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedApplications(filteredApplications.map(app => app.id));
+                        setSelectedApplications(filteredApplications.map(app => app._id));
                       } else {
                         setSelectedApplications([]);
                       }
@@ -437,16 +449,16 @@ const ApplicationManagement = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredApplications.map((app) => (
-                <tr key={app.id} className="hover:bg-gray-50">
+                <tr key={app._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
                       type="checkbox"
-                      checked={selectedApplications.includes(app.id)}
+                      checked={selectedApplications.includes(app._id)}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelectedApplications([...selectedApplications, app.id]);
+                          setSelectedApplications([...selectedApplications, app._id]);
                         } else {
-                          setSelectedApplications(selectedApplications.filter(id => id !== app.id));
+                          setSelectedApplications(selectedApplications.filter(id => id !== app._id));
                         }
                       }}
                       className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
@@ -460,33 +472,33 @@ const ApplicationManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {app.studentName}
+                        {app.applicant?.firstName} {app.applicant?.lastName}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {app.studentEmail}
+                        {app.applicant?.email}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {app.courseName}
+                      {app.course?.title}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(app.submittedDate).toLocaleDateString()}
+                    {new Date(app.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getStatusBadge(app.status)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 max-w-xs truncate" title={app.notes}>
-                      {app.notes}
+                    <div className="text-sm text-gray-900 max-w-xs truncate" title={typeof app.notes === 'object' ? JSON.stringify(app.notes) : app.notes}>
+                      {typeof app.notes === 'object' ? JSON.stringify(app.notes) : app.notes}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
                       <button
-                        onClick={() => window.open(`/applications/${app.id}`, '_blank')}
+                        onClick={() => window.open(`/applications/${app._id}`, '_blank')}
                         className="text-primary-600 hover:text-primary-900 text-sm"
                       >
                         View
@@ -494,19 +506,19 @@ const ApplicationManagement = () => {
                       {app.status === 'pending' && (
                         <>
                           <button
-                            onClick={() => handleApplicationAction(app.id, 'approve')}
+                            onClick={() => handleApplicationAction(app._id, 'approve')}
                             className="text-success-600 hover:text-success-900 text-sm"
                           >
                             Approve
                           </button>
                           <button
-                            onClick={() => handleApplicationAction(app.id, 'reject')}
+                            onClick={() => handleApplicationAction(app._id, 'reject')}
                             className="text-danger-600 hover:text-danger-900 text-sm"
                           >
                             Reject
                           </button>
                           <button
-                            onClick={() => handleApplicationAction(app.id, 'hold')}
+                            onClick={() => handleApplicationAction(app._id, 'hold')}
                             className="text-info-600 hover:text-info-900 text-sm"
                           >
                             Hold

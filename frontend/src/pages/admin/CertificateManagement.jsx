@@ -1,26 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
-import { fetchCertificates, updateCertificate, revokeCertificate, createCertificate } from '../../store/adminSlice';
+import { fetchCertificates, updateCertificate, revokeCertificate, createCertificate, fetchExams, fetchUsers } from '../../store/adminSlice';
 
 const CertificateManagement = () => {
   const dispatch = useDispatch();
-  const { certificates, loading } = useSelector(state => state.admin);
+  const certificates = useSelector(state => state.certificates.certificates);
+  const exams = useSelector(state => state.admin.exams);
+  const users = useSelector(state => state.admin.users);
+  const loading = useSelector(state => state.certificates.loading || state.admin.examsLoading || state.admin.usersLoading);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedCertificates, setSelectedCertificates] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedExamId, setSelectedExamId] = useState('');
+  const [selectedExam, setSelectedExam] = useState(null);
   const [createForm, setCreateForm] = useState({
-    studentName: '',
-    studentEmail: '',
-    courseId: '',
-    courseName: '',
-    issueDate: new Date().toISOString().split('T')[0]
+    template: 'standard',
+    issuedBy: 'Cooking Certification Institute',
+    authorizedBy: '',
+    customMessage: '',
   });
 
   useEffect(() => {
     dispatch(fetchCertificates());
+    dispatch(fetchExams());
+    dispatch(fetchUsers());
   }, [dispatch]);
+
+  // Filter eligible exams
+  const eligibleExams = (exams || []).filter(exam => exam.status === 'completed' && exam.result === 'pass' && !exam.certificateGenerated);
+
+  useEffect(() => {
+    if (selectedExamId) {
+      const exam = eligibleExams.find(e => e._id === selectedExamId);
+      setSelectedExam(exam || null);
+    } else {
+      setSelectedExam(null);
+    }
+  }, [selectedExamId, eligibleExams]);
 
   const filteredCertificates = certificates.filter(cert => {
     const matchesSearch = cert.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,39 +105,29 @@ const CertificateManagement = () => {
   };
 
   const handleCreateCertificate = () => {
-    // Add validation
-    if (!createForm.studentName || !createForm.studentEmail || !createForm.courseId) {
-      toast.error('Please fill in all required fields');
+    if (!selectedExamId || !createForm.authorizedBy) {
+      toast.error('Please select an eligible exam and authorized by');
       return;
     }
-
-    // Create certificate data
     const certificateData = {
-      ...createForm,
-      status: 'active',
-      certificateNumber: `CERT-${Date.now()}`,
-      expiryDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      verified: true
+      examId: selectedExamId,
+      template: createForm.template,
+      issuedBy: createForm.issuedBy,
+      authorizedBy: createForm.authorizedBy,
+      customMessage: createForm.customMessage,
     };
-
-    // Dispatch create action
     dispatch(createCertificate(certificateData))
       .then((result) => {
         if (result.meta.requestStatus === 'fulfilled') {
           setShowCreateModal(false);
-          setCreateForm({
-            studentName: '',
-            studentEmail: '',
-            courseId: '',
-            courseName: '',
-            issueDate: new Date().toISOString().split('T')[0]
-          });
+          setSelectedExamId('');
+          setCreateForm({ template: 'standard', issuedBy: 'Cooking Certification Institute', authorizedBy: '', customMessage: '' });
           toast.success('Certificate generated successfully');
         } else {
           toast.error('Failed to generate certificate');
         }
       })
-      .catch((error) => {
+      .catch(() => {
         toast.error('Failed to generate certificate');
       });
   };
@@ -394,92 +402,54 @@ const CertificateManagement = () => {
                 </button>
               </div>
               
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                handleCreateCertificate();
-              }} className="space-y-4">
+              <form onSubmit={e => { e.preventDefault(); handleCreateCertificate(); }} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Student Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.studentName}
-                    onChange={(e) => setCreateForm({...createForm, studentName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter student name"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Eligible Exam *</label>
+                  <select value={selectedExamId} onChange={e => setSelectedExamId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md" required>
+                    <option value="">Select an exam</option>
+                    {eligibleExams.map(exam => (
+                      <option key={exam._id} value={exam._id}>
+                        {exam.student?.firstName} {exam.student?.lastName} - {exam.course?.title} (Score: {exam.score?.obtained}/{exam.score?.total}, {exam.score?.percentage}%)
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                
+                {selectedExam && (
+                  <div className="bg-gray-50 p-2 rounded text-xs">
+                    <div><b>Student:</b> {selectedExam.student?.firstName} {selectedExam.student?.lastName} ({selectedExam.student?.email})</div>
+                    <div><b>Course:</b> {selectedExam.course?.title}</div>
+                    <div><b>Score:</b> {selectedExam.score?.obtained} / {selectedExam.score?.total} ({selectedExam.score?.percentage}%)</div>
+                    <div><b>Proctor:</b> {selectedExam.proctor?.firstName} {selectedExam.proctor?.lastName}</div>
+                  </div>
+                )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Student Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={createForm.studentEmail}
-                    onChange={(e) => setCreateForm({...createForm, studentEmail: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter student email"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Certificate Template</label>
+                  <select value={createForm.template} onChange={e => setCreateForm({ ...createForm, template: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    <option value="standard">Standard</option>
+                    <option value="gold">Gold</option>
+                    <option value="platinum">Platinum</option>
+                  </select>
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Course ID *
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.courseId}
-                    onChange={(e) => setCreateForm({...createForm, courseId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter course ID"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Issued By</label>
+                  <input type="text" value={createForm.issuedBy} onChange={e => setCreateForm({ ...createForm, issuedBy: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" />
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Course Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.courseName}
-                    onChange={(e) => setCreateForm({...createForm, courseName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter course name"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Authorized By *</label>
+                  <select value={createForm.authorizedBy} onChange={e => setCreateForm({ ...createForm, authorizedBy: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" required>
+                    <option value="">Select authorized person</option>
+                    {users && users.map(user => (
+                      <option key={user._id} value={user._id}>{user.firstName} {user.lastName}</option>
+                    ))}
+                  </select>
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Issue Date
-                  </label>
-                  <input
-                    type="date"
-                    value={createForm.issueDate}
-                    onChange={(e) => setCreateForm({...createForm, issueDate: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Custom Message</label>
+                  <textarea value={createForm.customMessage} onChange={e => setCreateForm({ ...createForm, customMessage: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" rows={2} />
                 </div>
-                
                 <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    Generate Certificate
-                  </button>
+                  <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200">Cancel</button>
+                  <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700">Generate Certificate</button>
                 </div>
               </form>
             </div>

@@ -1,27 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
-import { fetchExams, updateExam, gradeExam, createExam } from '../../store/adminSlice';
+import { fetchExams, updateExam, gradeExam, createExam, fetchUsers, fetchApplications } from '../../store/adminSlice';
 
 const ExamManagement = () => {
   const dispatch = useDispatch();
-  const { exams, loading } = useSelector(state => state.admin);
+  const exams = useSelector(state => state.exams.exams);
+  const users = useSelector(state => state.admin.users);
+  const applications = useSelector(state => state.admin.applications);
+  const loading = useSelector(state => state.exams.loading || state.admin.usersLoading || state.admin.applicationsLoading);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [courseFilter, setCourseFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState('');
+  const [selectedApplication, setSelectedApplication] = useState(null);
   const [createForm, setCreateForm] = useState({
-    studentName: '',
-    studentEmail: '',
-    courseId: '',
-    courseName: '',
     examDate: '',
-    duration: 120
+    examTime: '',
+    duration: 120,
+    location: '',
+    proctorId: '',
+    questions: [],
   });
 
   useEffect(() => {
     dispatch(fetchExams());
+    dispatch(fetchUsers());
+    dispatch(fetchApplications());
   }, [dispatch]);
+
+  // Filter approved applications and prevent duplicates
+  const approvedApplications = (applications || []).filter(app => app.status === 'approved' && !exams.some(exam => exam.applicationId === app._id));
+
+  useEffect(() => {
+    if (selectedApplicationId) {
+      const app = approvedApplications.find(a => a._id === selectedApplicationId);
+      setSelectedApplication(app || null);
+    } else {
+      setSelectedApplication(null);
+    }
+  }, [selectedApplicationId, approvedApplications]);
 
   const filteredExams = exams.filter(exam => {
     const matchesSearch = exam.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -94,41 +113,33 @@ const ExamManagement = () => {
   };
 
   const handleCreateExam = () => {
-    // Add validation
-    if (!createForm.studentName || !createForm.studentEmail || !createForm.courseId || !createForm.examDate) {
+    if (!selectedApplicationId || !createForm.examDate || !createForm.examTime || !createForm.duration) {
       toast.error('Please fill in all required fields');
       return;
     }
-
-    // Create exam data
     const examData = {
-      ...createForm,
-      status: 'scheduled',
-      examNumber: `EXAM-${Date.now()}`,
-      score: null,
-      passed: null
+      applicationId: selectedApplicationId,
+      examDate: createForm.examDate,
+      examTime: createForm.examTime,
+      duration: Number(createForm.duration),
+      location: createForm.location,
+      proctorId: createForm.proctorId,
+      questions: createForm.questions,
     };
-
-    // Dispatch create action
+    console.log('Scheduling exam with:', examData);
     dispatch(createExam(examData))
       .then((result) => {
         if (result.meta.requestStatus === 'fulfilled') {
           setShowCreateModal(false);
-          setCreateForm({
-            studentName: '',
-            studentEmail: '',
-            courseId: '',
-            courseName: '',
-            examDate: '',
-            duration: 120
-          });
+          setSelectedApplicationId('');
+          setCreateForm({ examDate: '', examTime: '', duration: 120, location: '', proctorId: '', questions: [] });
           toast.success('Exam scheduled successfully');
         } else {
-          toast.error('Failed to schedule exam');
+          toast.error(result.error?.message || 'Failed to schedule exam');
         }
       })
-      .catch((error) => {
-        toast.error('Failed to schedule exam');
+      .catch((err) => {
+        toast.error(err?.message || 'Failed to schedule exam');
       });
   };
 
@@ -414,117 +425,61 @@ const ExamManagement = () => {
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Schedule New Exam</h3>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
+                <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                handleCreateExam();
-              }} className="space-y-4">
+              <form onSubmit={e => { e.preventDefault(); handleCreateExam(); }} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Student Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.studentName}
-                    onChange={(e) => setCreateForm({...createForm, studentName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter student name"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Approved Application *</label>
+                  <select value={selectedApplicationId} onChange={e => setSelectedApplicationId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md" required>
+                    <option value="">Select an application</option>
+                    {approvedApplications.map(app => (
+                      <option key={app._id} value={app._id}>
+                        {app.applicant?.firstName} {app.applicant?.lastName} - {app.course?.title} ({app.applicationType}, {app.examType})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                
+                {selectedApplication && (
+                  <div className="bg-gray-50 p-2 rounded text-xs">
+                    <div><b>Student:</b> {selectedApplication.applicant?.firstName} {selectedApplication.applicant?.lastName} ({selectedApplication.applicant?.email})</div>
+                    <div><b>Course:</b> {selectedApplication.course?.title}</div>
+                    <div><b>Application Type:</b> {selectedApplication.applicationType}</div>
+                    <div><b>Exam Type:</b> {selectedApplication.examType}</div>
+                  </div>
+                )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Student Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={createForm.studentEmail}
-                    onChange={(e) => setCreateForm({...createForm, studentEmail: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter student email"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Exam Date *</label>
+                  <input type="date" value={createForm.examDate} onChange={e => setCreateForm({ ...createForm, examDate: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" required />
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Course ID *
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.courseId}
-                    onChange={(e) => setCreateForm({...createForm, courseId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter course ID"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Exam Time *</label>
+                  <input type="time" value={createForm.examTime} onChange={e => setCreateForm({ ...createForm, examTime: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" required />
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Course Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.courseName}
-                    onChange={(e) => setCreateForm({...createForm, courseName: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter course name"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes) *</label>
+                  <input type="number" min={15} value={createForm.duration} onChange={e => setCreateForm({ ...createForm, duration: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" required />
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Exam Date *
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={createForm.examDate}
-                    onChange={(e) => setCreateForm({...createForm, examDate: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <input type="text" value={createForm.location} onChange={e => setCreateForm({ ...createForm, location: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md" />
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Duration (minutes)
-                  </label>
-                  <input
-                    type="number"
-                    value={createForm.duration}
-                    onChange={(e) => setCreateForm({...createForm, duration: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="30"
-                    max="300"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Proctor</label>
+                  <select value={createForm.proctorId} onChange={e => setCreateForm({ ...createForm, proctorId: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    <option value="">Select proctor (optional)</option>
+                    {users && users.map(user => (
+                      <option key={user._id} value={user._id}>{user.firstName} {user.lastName}</option>
+                    ))}
+                  </select>
                 </div>
-                
+                {/* Optionally, add a section for questions here */}
                 <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    Schedule Exam
-                  </button>
+                  <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200">Cancel</button>
+                  <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700">Schedule Exam</button>
                 </div>
               </form>
             </div>

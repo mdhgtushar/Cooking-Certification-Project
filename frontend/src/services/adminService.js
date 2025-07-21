@@ -109,6 +109,13 @@ export const rejectApplication = async (applicationId, reason) => {
   });
 };
 
+export const reviewApplication = async (applicationId, reviewData) => {
+  return apiCall(`/applications/${applicationId}/review`, {
+    method: 'PUT',
+    body: JSON.stringify(reviewData),
+  });
+};
+
 // Exam Management API
 export const getExams = async (params = {}) => {
   const queryString = new URLSearchParams(params).toString();
@@ -242,7 +249,7 @@ export const createApplication = async (applicationData) => {
 };
 
 export const createExam = async (examData) => {
-  return apiCall('/admin/exam-results', {
+  return apiCall('/exams', {
     method: 'POST',
     body: JSON.stringify(examData),
   });
